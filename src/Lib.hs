@@ -3,7 +3,9 @@ module Lib
       isExprOperator,
       splitStrNumbers,
       isValidInfixStringList,
-      addIdElementHeadPlusNegNatNums,
+      combineUnaryOperatorsWithNumbers,
+      combineUnaryOperators,
+      isOperand
     ) where
 
 import Data.Char (isNumber, isSpace)
@@ -23,7 +25,7 @@ type Precedence = Int
 type InfixString = String
 
 operators :: String
-operators   = "+-*/" -- + and - are unary operators as well
+operators   = "+-*/^" -- + and - are unary operators as well
 
 isOperator :: Char -> Bool
 isOperator x = x `elem` operators
@@ -52,24 +54,24 @@ isExprOperator badExpr   = fail $ "The expression: " ++ (show badExpr) ++ " is n
 -- unary operators will need to be computed before this is called
 isValidInfixStringList :: [InfixString] -> Bool
 isValidInfixStringList [] = True
-isValidInfixStringList [_,_] = False -- cannot be infit with two elements
+isValidInfixStringList [_,_] = False -- cannot be infix with two elements
 isValidInfixStringList list@(x:_)
  | x == "*" || x == "/" = False -- non unary operators
- | otherwise = countBrackets list 0 0 && isValidInfixStringList' (addIdElementHeadPlusNegNatNums $ combineUnaryOperators list)
+ | otherwise = countBrackets list 0 0 && isValidInfixStringList' (combineUnaryOperatorsWithNumbers $ combineUnaryOperators list)
  where isValidInfixStringList' :: [InfixString] -> Bool
        isValidInfixStringList' [] = False
-       isValidInfixStringList' [")"] = True
+       isValidInfixStringList' [")"] = True -- matched brackets therefore if last element ), True
        isValidInfixStringList' [y] = isOperand y
        isValidInfixStringList' (y:ys)
-        | (length y == 1 && isOperator (head x)) &&
-                         (firstOperandElem  || headXS == "(") = isValidInfixStringList' ys
-        | isOperand y && (firstOperatorElem || headXS == ")") = isValidInfixStringList' ys
-        | x == ")"    && (firstOperatorElem || headXS == ")") = isValidInfixStringList' ys
-        | x == "("    && (firstOperandElem  || headXS == "(") = isValidInfixStringList' ys
+        | (length y == 1 && isOperator (head y)) &&
+                         (firstOperandElem  || headYS == "(") = isValidInfixStringList' ys
+        | isOperand y && (firstOperatorElem || headYS == ")") = isValidInfixStringList' ys
+        | y == ")"    && (firstOperatorElem || headYS == ")") = isValidInfixStringList' ys
+        | y == "("    && (firstOperandElem  || headYS == "(") = isValidInfixStringList' ys
         | otherwise = False
          where firstOperandElem  = isOperand . head $ ys
                firstOperatorElem = isOperator . head . head $ ys
-               headXS = head ys
+               headYS = head ys
 
 countBrackets :: [String] -> Int -> Int -> Bool
 countBrackets [] open close = open == close
@@ -90,24 +92,43 @@ splitStrNumbers xs =  filter (/= "") (splitStrNumbers' xs)
         where isDottedNumber :: Char -> Bool
               isDottedNumber c = isNumber c || c == '.'
 
+
+-- If the first element of a head is +,- then it needs to have an operand on the left
+-- 0 is the identity element for both addition and negation of natural numbers,
+-- and since it's unary we will put 0 in front
+-- Also combine the the unary operators with numbers if something like 3 * - 3 is given
+combineUnaryOperatorsWithNumbers :: [InfixString] -> [InfixString]
+combineUnaryOperatorsWithNumbers [] = []
+combineUnaryOperatorsWithNumbers [x] = [x]
+combineUnaryOperatorsWithNumbers list@(x:y:xs)
+ | (length x == 1 && isOperator (head x)) && x == "+" &&
+    (isOperand y || y == "(") = combineUnaryOperatorsWithNumbers' (y:xs)
+ | (length x == 1 && isOperator (head x)) && x == "-" &&
+    (isOperand y || y == "(") = "-1" : "*" : combineUnaryOperatorsWithNumbers' (y:xs)
+ | otherwise = combineUnaryOperatorsWithNumbers' list
+ where combineUnaryOperatorsWithNumbers' :: [InfixString] -> [InfixString]
+       combineUnaryOperatorsWithNumbers' [] = []
+       combineUnaryOperatorsWithNumbers' [a] = [a]
+       combineUnaryOperatorsWithNumbers' (a:b:bs)
+        | a == "(" && (length b == 1 &&
+           isOperator (head b) && b == "+") = a : combineUnaryOperatorsWithNumbers' bs
+        | a == "(" && (length b == 1 &&
+           isOperator (head b) && b == "-") = "-1" : "*" : b : combineUnaryOperatorsWithNumbers' bs
+        | (length a == 1 && isOperator (head a)) && (length b == 1 &&
+           isOperator (head b) && b == "+") = a : combineUnaryOperatorsWithNumbers' bs
+        | (length a == 1 && isOperator (head a)) && (length b == 1 &&
+           isOperator (head b) && b == "-") = a : "-1" : "*" : combineUnaryOperatorsWithNumbers' bs
+        | otherwise = a : combineUnaryOperatorsWithNumbers' (b:bs)
+
 -- Unary operators are +,-
 combineUnaryOperators :: [InfixString] -> [InfixString]
 combineUnaryOperators [] = []
 combineUnaryOperators [x] = [x]
 combineUnaryOperators (x:y:xs)
- | isOperand x = x : combineUnaryOperators (y:xs)
+ | isOperand x  = x : combineUnaryOperators (y:xs)
  | minusRule = combineUnaryOperators ("-":xs)
  | plusRule  = combineUnaryOperators ("+":xs)
  | y /= "+" && y /= "-" = x : y : combineUnaryOperators xs
- | otherwise =  x : combineUnaryOperators (y:xs)
- where minusRule = (x == "+" && y == "-") || (x == "-" && y == "+")
-       plusRule  = (x == "+" && y == "+") || (x == "-" && y == "-")
-
--- If the first element of a head is +,- then it needs to have an operand on the left
--- 0 is the identity element for both addition and negation of natural numbers,
--- and since it's unary we will put 0 in front
-addIdElementHeadPlusNegNatNums :: [InfixString] -> [InfixString]
-addIdElementHeadPlusNegNatNums [] = []
-addIdElementHeadPlusNegNatNums list@(x:_)
- | x == "-" || x == "+" = "0":list
- | otherwise = list
+ | otherwise  =  x : combineUnaryOperators (y:xs)
+ where minusRule = x == "+" && y == "-" || x == "-" && y == "+"
+       plusRule  = x == "+" && y == "+" || x == "-" && y == "-"
