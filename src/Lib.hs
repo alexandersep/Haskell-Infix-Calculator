@@ -92,7 +92,6 @@ splitStrNumbers xs =  filter (/= "") (splitStrNumbers' xs)
         where isDottedNumber :: Char -> Bool
               isDottedNumber c = isNumber c || c == '.'
 
-
 -- If the first element of a head is +,- then it needs to have an operand on the left
 -- 0 is the identity element for both addition and negation of natural numbers,
 -- and since it's unary we will put 0 in front
@@ -113,7 +112,7 @@ combineUnaryOperatorsWithNumbers list@(x:y:xs)
         | a == "(" && (length b == 1 &&
            isOperator (head b) && b == "+") = a : combineUnaryOperatorsWithNumbers' bs
         | a == "(" && (length b == 1 &&
-           isOperator (head b) && b == "-") = "-1" : "*" : b : combineUnaryOperatorsWithNumbers' bs
+           isOperator (head b) && b == "-") = a : "-1" : "*" : b : combineUnaryOperatorsWithNumbers' bs
         | (length a == 1 && isOperator (head a)) && (length b == 1 &&
            isOperator (head b) && b == "+") = a : combineUnaryOperatorsWithNumbers' bs
         | (length a == 1 && isOperator (head a)) && (length b == 1 &&
